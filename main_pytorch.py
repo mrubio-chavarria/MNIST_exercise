@@ -1,6 +1,7 @@
 #!/home/mario/Projects/MNIST_exercise/venv/bin python
 
 # Libraries
+from comet_ml import Experiment
 from plot_lib import plot_data, plot_model, set_default
 import torch
 import torch.nn as nn
@@ -46,7 +47,8 @@ class FCN(nn.Module):
             nn.Linear(input_size, n_hidden),
             nn.ReLU(),
             nn.Linear(n_hidden, output_size),
-            nn.LogSoftmax(dim=1)
+            # Commented because of the nn.CrossEntropyLoss
+            # nn.LogSoftmax(dim=1)
         )
 
     def forward(self, input_image):
@@ -90,7 +92,8 @@ class CNN(nn.Module):
             nn.Linear(16 * n_features, 16),
             nn.ReLU(),
             nn.Linear(16, output_size),
-            nn.LogSoftmax(dim=1)
+            # Commented because of the nn.CrossEntropyLoss
+            # nn.LogSoftmax(dim=1)
         )
     
     def forward(self, input_image):
@@ -114,6 +117,8 @@ def train(epoch, model):
     model.train()
     # Define optimiser
     optimiser = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
+    # Define loss
+    loss_function = nn.CrossEntropyLoss()
     # Train
     for batch_id, (data, target) in enumerate(train_loader):
         # Send to device
@@ -123,7 +128,8 @@ def train(epoch, model):
         # 1. Forward pass
         output = model(data)
         # 2. Loss
-        loss = F.nll_loss(output, target)
+        # loss = F.nll_loss(output, target)
+        loss = loss_function(output, target)
         # 3. Backpropagation
         loss.backward()
         # 4. Go step in the gradient
@@ -161,13 +167,22 @@ def test(model, accuracy_list):
     test_loss /= len(test_loader.dataset)
     accuracy = 100. * correct / len(test_loader.dataset)
     accuracy_list.append(accuracy)
-    # # Print test results
-    # print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-    #     test_loss, correct, len(test_loader.dataset),
-    #     accuracy))
-        
+    # Print test results
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        accuracy))
+
 
 if __name__ == '__main__':
+
+    # # Create an experiment with your api key
+    # # To connect a project with comet, just copy this code and substitute
+    # # the aPI variables to select the project
+    # experiment = Experiment(
+    #     api_key="rqM9qXHiO7Ai4U2cqj1pS4R2R",
+    #     project_name="mnist-test",
+    #     workspace="mrubio-chavarria",
+    # )
 
     # Select device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -193,24 +208,29 @@ if __name__ == '__main__':
                     ])),
         batch_size=1000, shuffle=True)
 
-    # # Create the FCN
-    # n_hidden = 128
+    # # Create the FCN model
+    # n_hidden = 256
     # network = FCN(input_size, n_hidden, output_size)
     # network.to(device)
 
-    # Create the CNN
+    # Create the CNN model
     n_features = 12
     kernel_size = 5
     network = CNN(int(input_size ** 0.5), n_features, output_size, kernel_size)
+    network.to(device)
 
+    # Start training
     n_epochs = 1
     print('Number of parameters: {}'.format(get_n_params(network)))
     print('START TRAINING')
-
     accuracy_list = []
     for epoch in range(0, n_epochs):
         train(epoch, network)
         test(network, accuracy_list)
 
-    print(accuracy_list)
+    # Save the model
+    path = './saved_models/model.json'
+    torch.save(network.state_dict(), path)
+
+    
     
