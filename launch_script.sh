@@ -5,7 +5,9 @@ echo "Started"
 
 cd $HOME/MNIST_exercise
 
-source venv/bin/activate
+module load anaconda3/personal
+
+source activate MNIST_venv
 
 python3 $HOME/MNIST_exercise/main_pytorch.py
 

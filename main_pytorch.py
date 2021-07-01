@@ -1,15 +1,11 @@
 #!/home/mario/Projects/MNIST_exercise/venv/bin python
 
 # Libraries
-from comet_ml import Experiment
-from plot_lib import plot_data, plot_model, set_default
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
-import matplotlib.pyplot as plt
-import numpy
 
 
 # Libraries
