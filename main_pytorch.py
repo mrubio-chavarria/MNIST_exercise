@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
+import torch.multiprocessing as mp
 
 
 # Libraries
@@ -102,7 +103,7 @@ class CNN(nn.Module):
 
 
 # Functions
-def train(epoch, model):
+def train(n_epochs, model, rank):
     """
     DESCRIPTION:
     Method to train the model.
@@ -116,25 +117,29 @@ def train(epoch, model):
     # Define loss
     loss_function = nn.CrossEntropyLoss()
     # Train
-    for batch_id, (data, target) in enumerate(train_loader):
-        # Send to device
-        data, target = data.to(device), target.to(device)
-        # Clean the gradient
-        optimiser.zero_grad()
-        # 1. Forward pass
-        output = model(data)
-        # 2. Loss
-        # loss = F.nll_loss(output, target)
-        loss = loss_function(output, target)
-        # 3. Backpropagation
-        loss.backward()
-        # 4. Go step in the gradient
-        optimiser.step()
-        # Print progress
-        if batch_id % 100 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-            epoch, batch_id * len(data), len(train_loader.dataset),
-            100. * batch_id / len(train_loader), loss.item()))
+    accuracy_list = []
+    for epoch in range(n_epochs):
+        for batch_id, (data, target) in enumerate(train_loader):
+            # Send to device
+            data, target = data.to(device), target.to(device)
+            # Clean the gradient
+            optimiser.zero_grad()
+            # 1. Forward pass
+            output = model(data)
+            # 2. Loss
+            # loss = F.nll_loss(output, target)
+            loss = loss_function(output, target)
+            # 3. Backpropagation
+            loss.backward()
+            # 4. Go step in the gradient
+            optimiser.step()
+            # Print progress
+            if batch_id % 100 == 0:
+                print('Process: {} Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                rank+1, epoch, batch_id * len(data), len(train_loader.dataset),
+                100. * batch_id / len(train_loader), loss.item()))
+        # Test epoch outcome
+        test(network, accuracy_list)
 
 
 def test(model, accuracy_list):
@@ -180,6 +185,8 @@ if __name__ == '__main__':
     #     workspace="mrubio-chavarria",
     # )
 
+    n_processes = 4
+
     # Select device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -215,14 +222,19 @@ if __name__ == '__main__':
     network = CNN(int(input_size ** 0.5), n_features, output_size, kernel_size)
     network.to(device)
 
+    network.share_memory()
+
     # Start training
-    n_epochs = 1
+    n_epochs = 2
     print('Number of parameters: {}'.format(get_n_params(network)))
     print('START TRAINING')
-    accuracy_list = []
-    for epoch in range(0, n_epochs):
-        train(epoch, network)
-        test(network, accuracy_list)
+    processes = []
+    for rank in range(n_processes):
+        p = mp.Process(target=train, args=(n_epochs, network, rank))
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()        
 
     # Save the model
     path = './saved_models/model.json'
